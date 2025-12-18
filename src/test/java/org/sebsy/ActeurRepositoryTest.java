@@ -52,9 +52,11 @@ public class ActeurRepositoryTest {
 	 */
 	@Test
 	public void testExtraireActeursParAnneeNaissance() {
-		TypedQuery<Acteur> query = em.createQuery("SELECT a FROM Acteur a", Acteur.class);
+		TypedQuery<Acteur> query = em.createQuery(
+			"SELECT a FROM Acteur a WHERE YEAR(a.anniversaire) = 1985", 
+			Acteur.class
+		);
 		List<Acteur> acteurs = query.getResultList();
-
 		assertEquals(10, acteurs.size());
 	}
 
@@ -63,10 +65,13 @@ public class ActeurRepositoryTest {
 	 */
 	@Test
 	public void testExtraireActeursParRole() {
-
-		TypedQuery<Acteur> query = em.createQuery("SELECT a FROM Acteur a", Acteur.class);
+		TypedQuery<Acteur> query = em.createQuery(
+			"SELECT DISTINCT r.acteur FROM Role r " +
+			"WHERE r.nom = 'Harley Quinn'", 
+			Acteur.class
+		);
+		
 		List<Acteur> acteurs = query.getResultList();
-
 		assertEquals(1, acteurs.size());
 		assertEquals("Margot Robbie", acteurs.get(0).getIdentite());
 	}
@@ -76,7 +81,13 @@ public class ActeurRepositoryTest {
 	 */
 	@Test
 	public void testExtraireActeursParFilmParuAnnee() {
-		TypedQuery<Acteur> query = em.createQuery("SELECT a FROM Acteur a", Acteur.class);
+		TypedQuery<Acteur> query = em.createQuery(
+			"SELECT DISTINCT r.acteur FROM Role r " +
+			"JOIN r.film f " +
+			"WHERE f.annee = :annee", 
+			Acteur.class
+		).setParameter("annee", 2015);
+		
 		List<Acteur> acteurs = query.getResultList();
 		assertEquals(119, acteurs.size());
 	}
@@ -86,7 +97,14 @@ public class ActeurRepositoryTest {
 	 */
 	@Test
 	public void testExtraireActeursParPays() {
-		TypedQuery<Acteur> query = em.createQuery("SELECT a FROM Acteur a", Acteur.class);
+		TypedQuery<Acteur> query = em.createQuery(
+			"SELECT DISTINCT r.acteur FROM Role r " +
+			"JOIN r.film f " +
+			"JOIN f.pays p " +
+			"WHERE p.nom = 'France'", 
+			Acteur.class
+		);
+		
 		List<Acteur> acteurs = query.getResultList();
 		assertEquals(158, acteurs.size());
 	}
@@ -97,7 +115,14 @@ public class ActeurRepositoryTest {
 	 */
 	@Test
 	public void testExtraireActeursParListePaysEtAnnee() {
-		TypedQuery<Acteur> query = em.createQuery("SELECT a FROM Acteur a", Acteur.class);
+		TypedQuery<Acteur> query = em.createQuery(
+			"SELECT DISTINCT r.acteur FROM Role r " +
+			"JOIN r.film f " +
+			"JOIN f.pays p " +
+			"WHERE p.nom = 'France' AND f.annee = 2017", 
+			Acteur.class
+		);
+		
 		List<Acteur> acteurs = query.getResultList();
 		assertEquals(24, acteurs.size());
 	}
@@ -108,7 +133,15 @@ public class ActeurRepositoryTest {
 	 */
 	@Test
 	public void testExtraireParRealisateurEntreAnnee() {
-		TypedQuery<Acteur> query = em.createQuery("SELECT a FROM Acteur a", Acteur.class);
+		TypedQuery<Acteur> query = em.createQuery(
+			"SELECT DISTINCT r.acteur FROM Role r " +
+			"JOIN r.film f " +
+			"JOIN f.realisateurs real " +
+			"WHERE real.identite = 'Ridley Scott' " +
+			"AND f.annee BETWEEN 2010 AND 2020", 
+			Acteur.class
+		);
+		
 		List<Acteur> acteurs = query.getResultList();
 		assertEquals(27, acteurs.size());
 	}
@@ -118,9 +151,17 @@ public class ActeurRepositoryTest {
 	 */
 	@Test
 	public void testExtraireRealisateursParActeur() {
-		TypedQuery<Realisateur> query = em.createQuery("SELECT r FROM Realisateur r", Realisateur.class);
-		List<Realisateur> acteurs = query.getResultList();
-		assertEquals(6, acteurs.size());
+		TypedQuery<Realisateur> query = em.createQuery(
+			"SELECT DISTINCT real FROM Realisateur real " +
+			"JOIN real.films f " +
+			"JOIN f.roles role " +
+			"JOIN role.acteur a " +
+			"WHERE a.identite = 'Brad Pitt'", 
+			Realisateur.class
+		);
+		
+		List<Realisateur> realisateurs = query.getResultList();
+		assertEquals(6, realisateurs.size());
 	}
 	
 	@BeforeEach
@@ -135,24 +176,21 @@ public class ActeurRepositoryTest {
 
 	@BeforeAll
 	public static void initDatabase() {
-		emf = Persistence.createEntityManagerFactory("movie_db");
-		EntityManager em = emf.createEntityManager();
-		
 		try {
+			// Création de l'EntityManagerFactory avec la configuration du persistence.xml
+			emf = Persistence.createEntityManagerFactory("movie_db");
 			
-			if (em.createQuery("FROM Acteur").getResultList().size()==0) {
-				em.getTransaction().begin();
-				Path home = Paths.get(ActeurRepositoryTest.class.getClassLoader().getResource("data.sql").toURI());
-				String[] queries = Files.readAllLines(home).stream().collect(Collectors.joining("\n")).split(";");
-				for (String query: queries) {
-					em.createNativeQuery(query).executeUpdate();
-				}
-				em.getTransaction().commit();
+			// Création d'un EntityManager pour vérifier que tout est correctement initialisé
+			EntityManager em = emf.createEntityManager();
+			try {
+				// Exécution d'une requête simple pour vérifier la connexion
+				em.createQuery("SELECT 1").getResultList();
+			} finally {
+				em.close();
 			}
-		} catch (IOException | URISyntaxException e) {
-			throw new RuntimeException(e);
+		} catch (Exception e) {
+			throw new RuntimeException("Erreur lors de l'initialisation de la base de données", e);
 		}
-		em.close();
 	}
 
 	@AfterAll
